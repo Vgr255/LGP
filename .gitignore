@@ -1,0 +1,5 @@
+# LGP files
+*.lgp
+
+# Python bytecode
+*.py[cod]
