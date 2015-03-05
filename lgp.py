@@ -66,6 +66,17 @@ class LGPHandler:
                 file = files[offset]
                 ordfiles[i] = (file[0], offset) + file[2:]
             # after this, we have re-ordered all the files in appearance order
-            # calculate where we are with the total length and files
-            ffile = ordfiles[0][1] # get the offset of the first file
+            # now, we need to find the beginning header of each file
+            for offset, filename in files.items():
+                new = total[offset:]
+                fname, new = (new[:20], new[20:])
+                flen, new = (new[:4], new[4:])
+                print(filename)
+                flen = int("".join(str(x) for x in flen if x))
+                print(flen)
+                data = new[:flen]
+                with open(os.path.join(self.folder, filename), "wb") as w:
+                    w.write(data)
+
+LGPHandler("D:/GitHub/LGP/awe.lgp", "D:/GitHub/LGP/awe").extract()
 
