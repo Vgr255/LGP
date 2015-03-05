@@ -33,20 +33,18 @@ class LGPHandler:
             pointer = 0 # our current position in the file
             # the first 12 bytes are the file creator; right-aligned
             fcreator, _all = (_all[:12], _all[12:])
-            pointer += 11
+            pointer += 12
             # next up is the amount of files contained in the archive (4 bytes)
             num, _all = (_all[:4], _all[4:])
-            pointer += 3
+            pointer += 4
             # find the actual value of the byte we just got
             # the character's lexicography is checked and we get the # of files
-            num = ord(num.decode("utf-8")[0])
+            num = ord(num.decode("utf-8").strip("\x00"))
             files = {}
             while num:
                 # iterable through every file
                 # fetch the bits about this file, and save the rest
                 file, _all = (_all[:27], _all[27:])
-                # increase our position for each parsed file
-                pointer += 26
                 # save the filename for use
                 filename, file = (file[:20].decode("utf-8"), file[20:])
                 # remove all null bytes terminating the strings
@@ -54,9 +52,11 @@ class LGPHandler:
                 # this is a hacky way around it, but there's no better way
                 # decoding fails in certain cases, while str() does not
                 start = int("".join(str(x) for x in file[:4]))
-                files[start] = (filename, pointer-26, file[4], file[4:6])
                 # keep in memory the conflicts amount for each file
                 # also remember the starting position of this index
+                files[start] = (filename, pointer, file[4], file[5] + file[6])
+                # increase our position for each parsed file
+                pointer += 27
                 num -= 1
             # past this point, we parsed and saved all files' offsets
             # let's sort the files by order that they appear to find the first
