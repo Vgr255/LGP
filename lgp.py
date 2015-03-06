@@ -28,56 +28,66 @@ import os
 def _join_hex(hexlist):
     return "0x" + "".join(x[2:].zfill(2) for x in hexlist)
 
-class LGPHandler:
-    def __init__(self, file, folder):
-        self.file = file
-        self.folder = folder
-        if not os.path.isdir(folder):
-            os.mkdir(folder)
-
-    def extract(self):
-        with open(self.file, "rb") as f:
-            _all = f.read()
-            total = _all # save for future reference
-            pointer = 0 # our current position in the file
-            # the first 12 bytes are the file creator; right-aligned
-            fcreator, _all = (_all[:12], _all[12:])
-            pointer += 12
-            # next up is the amount of files contained in the archive (4 bytes)
-            num, _all = (_all[:4], _all[4:])
-            pointer += 4
-            # find the actual value of the byte we just got
-            # the character's lexicography is checked and we get the # of files
-            num = ord(num.decode("utf-8").strip("\x00"))
-            files = {}
-            while num:
-                # iterable through every file
-                # fetch the bits about this file, and save the rest
-                file, _all = (_all[:27], _all[27:])
-                # save the filename for use
-                filename, file = (file[:20].decode("utf-8"), file[20:])
-                # remove all null bytes terminating the strings
-                filename = filename.strip("\x00")
-                # 4-bytes integer stating the beginning of the file
-                # these are backwards, so reverse it
-                allbytes = reversed([hex(int(str(x))) for x in file[:4]])
-                start = _join_hex(allbytes)
-                # keep in memory the conflicts amount for each file
-                # also remember the starting position of this index
-                files[start] = (filename, pointer, file[4], file[5] + file[6])
-                # increase our position for each parsed file
-                pointer += 27
-                num -= 1
-            # past this point, we parsed and saved all files' offsets
-            # let's sort the files by order that they appear to find the first
-            offsets = sorted(files.keys())
-            ordfiles = [None] * len(files)
-            for i, offset in enumerate(offsets):
-                file = files[offset]
-                ordfiles[i] = (file[0], offset) + file[2:]
-            # after this, we have re-ordered all the files in appearance order
-            # now, we need to find the beginning header of each file
-            for filename, offset, static, conflicts in ordfiles:
+def extract(file, folder=None):
+    if folder is None:
+        indx = 0
+        if "." in file:
+            indx = file.index(".")
+        folder = os.path.join(os.getcwd(), file[indx:])
+    if not os.path.isdir(folder):
+        os.mkdir(folder)
+    with open(file, "rb") as f:
+        _all = f.read()
+        has_conflicts = False
+        total = _all # save for future reference
+        pointer = 0 # our current position in the file
+        # the first 12 bytes are the file creator; right-aligned
+        fcreator, _all = (_all[:12], _all[12:])
+        pointer += 12
+        # next up is the amount of files contained in the archive (4 bytes)
+        num, _all = (_all[:4], _all[4:])
+        pointer += 4
+        # find the actual value of the byte we just got
+        # the character's lexicography is checked and we get the # of files
+        num = ord(num.decode("utf-8").strip("\x00"))
+        files = {}
+        while num:
+            # iterable through every file
+            # fetch the bits about this file, and save the rest
+            file, _all = (_all[:27], _all[27:])
+            # save the filename for use
+            filename, file = (file[:20].decode("utf-8"), file[20:])
+            # remove all null bytes terminating the strings
+            filename = filename.strip("\x00")
+            # 4-bytes integer stating the beginning of the file
+            # these are backwards, so reverse it
+            allbytes = reversed([hex(int(str(x))) for x in file[:4]])
+            start = _join_hex(allbytes)
+            # keep in memory the conflicts amount for each file
+            # also remember the starting position of this index
+            files[start] = (filename, pointer, file[4], file[6])
+            # increase our position for each parsed file
+            pointer += 27
+            # finally, one last check needs to be done
+            # this is completely irrelevant for almost every archive
+            # however, magic.lgp (and maybe a few others) have conflicts
+            # we keep a boolean around to know if there are any conflicts
+            if file[6]: # will be non-zero if there are conflicts
+                has_conflicts = True
+            num -= 1
+        # past this point, we parsed and saved all files' offsets
+        # let's sort the files by order that they appear to find the first
+        offsets = sorted(files.keys())
+        ordfiles = [None] * len(files)
+        for i, offset in enumerate(offsets):
+            file = files[offset]
+            ordfiles[i] = (file[0], pointer, offset, file[3])
+        # after this, we have re-ordered all the files in appearance order
+        # now, we need to find the beginning header of each file
+        if not has_conflicts:
+            # assuming we have not found any conflicts, our job here is done
+            # we just extract the files to disk, not caring about conflicts
+            for filename, pointer, offset, conflicts in ordfiles:
                 new = total[int(offset, 16):]
                 fname, new = (new[:20], new[20:])
                 flen, new = (new[:4], new[4:])
