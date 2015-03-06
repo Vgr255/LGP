@@ -13,9 +13,15 @@
 # compare the end of the ToC against the beginning of the first file
 
 # Conflicts explained, courtesy of Aali:
-# the last 2 bytes (mentioned above) of each ToC entry state the amount of conflicts
-# for each of those there are 2 other bytes that tells you how many subdirectories there are for each conflict
-# and THEN, we need to read a 128-byte string (the name of the subdirectory) and two bytes that tell us the ToC index it corresponds to
+# the last 2 bytes of each ToC entry state the amount of conflicts
+# for each of those there are 2 other bytes that tell you
+# how many subdirectories there are for each conflict;
+# and THEN, we need to read a 128-byte string (the name of the subdirectory)
+# then there are two bytes that tell us the ToC index it corresponds to
+
+# HUGE thanks to Andy_S of EsperNet, who helped me through this headache
+# I have never really messed around with file formats before, so I knew nothing
+# he helped me find my way through this and make it work as it should
 
 import os
 
