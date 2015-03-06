@@ -19,6 +19,9 @@
 
 import os
 
+def _join_hex(hexlist):
+    return "0x" + "".join(x[2:] for x in hexlist)
+
 class LGPHandler:
     def __init__(self, file, folder):
         self.file = file
@@ -49,9 +52,10 @@ class LGPHandler:
                 filename, file = (file[:20].decode("utf-8"), file[20:])
                 # remove all null bytes terminating the strings
                 filename = filename.strip("\x00")
-                # this is a hacky way around it, but there's no better way
-                # decoding fails in certain cases, while str() does not
-                start = int("".join(str(x) for x in file[:4]))
+                # 4-bytes integer stating the beginning of the file
+                # these are backwards, so reverse it
+                allbytes = reversed([hex(int(str(x))) for x in file[:4]])
+                start = _join_hex(allbytes)
                 # keep in memory the conflicts amount for each file
                 # also remember the starting position of this index
                 files[start] = (filename, pointer, file[4], file[5] + file[6])
@@ -67,16 +71,14 @@ class LGPHandler:
                 ordfiles[i] = (file[0], offset) + file[2:]
             # after this, we have re-ordered all the files in appearance order
             # now, we need to find the beginning header of each file
-            for offset, filename in files.items():
-                new = total[offset:]
+            for filename, offset, static, conflicts in ordfiles:
+                new = total[int(offset, 16):]
                 fname, new = (new[:20], new[20:])
                 flen, new = (new[:4], new[4:])
-                print(filename)
-                flen = int("".join(str(x) for x in flen if x))
-                print(flen)
+                flen = reversed([hex(int(str(x))) for x in flen])
+                flen = int(_join_hex(flen), 16)
                 data = new[:flen]
                 with open(os.path.join(self.folder, filename), "wb") as w:
                     w.write(data)
 
-LGPHandler("D:/GitHub/LGP/awe.lgp", "D:/GitHub/LGP/awe").extract()
 
