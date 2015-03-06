@@ -20,7 +20,7 @@
 import os
 
 def _join_hex(hexlist):
-    return "0x" + "".join(x[2:] for x in hexlist)
+    return "0x" + "".join(x[2:].zfill(2) for x in hexlist)
 
 class LGPHandler:
     def __init__(self, file, folder):
