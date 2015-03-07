@@ -1,4 +1,4 @@
-# the first 12 bytes are the file creator
+﻿# the first 12 bytes are the file creator
 # then a 4-bytes integer about the number of files
 
 # Table of Contents; each entry is like this:
@@ -8,9 +8,7 @@
 # 2 bytes saying the number of conflicts
 
 # after that, the conflicts table, according to Aali
-# the wiki (ficedula) states it's typically 3602 bytes long
-# however I can never get that short; oh well, for now it's not too bad
-# compare the end of the ToC against the beginning of the first file
+# compare the end of the ToC against the beginning of the first file to get it
 
 # Conflicts explained, courtesy of Aali:
 # the last 2 bytes of each ToC entry state the amount of conflicts
@@ -20,20 +18,31 @@
 # then there are two bytes that tell us the ToC index it corresponds to
 
 # HUGE thanks to Andy_S of EsperNet, who helped me through this headache
-# I have never really messed around with file formats before, so I knew nothing
+# I have never really messed around with file formats before, so I had nothing
 # he helped me find my way through this and make it work as it should
 
 import os
 
 def _join_hex(hexlist):
-    return "0x" + "".join(x[2:].zfill(2) for x in hexlist)
+    allhexes = reversed([hex(int(str(x))) for x in hexlist])
+    return "0x" + "".join(x[2:].zfill(2) for x in allhexes)
+
+def _join_bytes(bytelist):
+    new = ""
+    for char in bytelist:
+        try:
+            char = chr(ord(char))
+        except TypeError:
+            char = chr(char)
+        new += char
+    return new
 
 def extract(file, folder=None):
     if folder is None:
-        indx = 0
+        indx = None
         if "." in file:
             indx = file.index(".")
-        folder = os.path.join(os.getcwd(), file[indx:])
+        folder = os.path.join(os.getcwd(), file[:indx])
     if not os.path.isdir(folder):
         os.mkdir(folder)
     with open(file, "rb") as f:
@@ -48,8 +57,8 @@ def extract(file, folder=None):
         num, _all = (_all[:4], _all[4:])
         pointer += 4
         # find the actual value of the byte we just got
-        # the character's lexicography is checked and we get the # of files
-        num = ord(num.decode("utf-8").strip("\x00"))
+        # flip the bytes around and calculate that
+        num = int(_join_hex(num), 16)
         files = {}
         while num:
             # iterable through every file
@@ -61,18 +70,19 @@ def extract(file, folder=None):
             filename = filename.strip("\x00")
             # 4-bytes integer stating the beginning of the file
             # these are backwards, so reverse it
-            allbytes = reversed([hex(int(str(x))) for x in file[:4]])
-            start = _join_hex(allbytes)
+            start = _join_hex(file[:4])
+            # get the total amount of conflicts for that file
+            conflicts = _join_hex(file[5:])
             # keep in memory the conflicts amount for each file
             # also remember the starting position of this index
-            files[start] = (filename, pointer, file[4], file[6])
+            files[start] = (filename, pointer, file[4], file[5:])
             # increase our position for each parsed file
             pointer += 27
             # finally, one last check needs to be done
             # this is completely irrelevant for almost every archive
             # however, magic.lgp (and maybe a few others) have conflicts
             # we keep a boolean around to know if there are any conflicts
-            if file[6]: # will be non-zero if there are conflicts
+            if int(conflicts, 16): # will be non-zero if there are conflicts
                 has_conflicts = True
             num -= 1
         # past this point, we parsed and saved all files' offsets
@@ -81,7 +91,7 @@ def extract(file, folder=None):
         ordfiles = [None] * len(files)
         for i, offset in enumerate(offsets):
             file = files[offset]
-            ordfiles[i] = (file[0], pointer, offset, file[3])
+            ordfiles[i] = (file[0], file[1], offset, file[3])
         # after this, we have re-ordered all the files in appearance order
         # now, we need to find the beginning header of each file
         if not has_conflicts:
