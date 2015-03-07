@@ -23,6 +23,15 @@
 
 import os
 
+# this stores the parsed files' hashes, to avoid parsing multiple times
+# parsing a single LGP file is a very time-confusing task
+# thus, we're saving the hashes of the files to make sure it's only done once
+_hashed_files = {}
+
+# after this, we're saving the files' contents themselves in memory
+# this is all optimization, and is only used to access the data more than once
+_files_contents = {}
+
 def _join_hex(hexlist):
     allhexes = reversed([hex(int(str(x))) for x in hexlist])
     return "0x" + "".join(x[2:].zfill(2) for x in allhexes)
@@ -47,6 +56,11 @@ def extract(file, folder=None):
         os.mkdir(folder)
     with open(file, "rb") as f:
         _all = f.read()
+        # save a hash of the file's contents in memory
+        # use sha512 because the files can be really huge
+        fhash = hashlib.sha512(_all).hexdigest()
+        if fhash == _hashed_files.get(file):
+            return _files_contents[file]
         has_conflicts = False
         total = _all # save for future reference
         pointer = 0 # our current position in the file
