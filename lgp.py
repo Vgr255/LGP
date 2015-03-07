@@ -21,6 +21,7 @@
 # I have never really messed around with file formats before, so I had nothing
 # he helped me find my way through this and make it work as it should
 
+import hashlib
 import os
 
 # this stores the parsed files' hashes, to avoid parsing multiple times
