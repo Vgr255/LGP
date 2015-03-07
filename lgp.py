@@ -94,17 +94,36 @@ def extract(file, folder=None):
             ordfiles[i] = (file[0], file[1], offset, file[3])
         # after this, we have re-ordered all the files in appearance order
         # now, we need to find the beginning header of each file
-        if not has_conflicts:
-            # assuming we have not found any conflicts, our job here is done
-            # we just extract the files to disk, not caring about conflicts
-            for filename, pointer, offset, conflicts in ordfiles:
-                new = total[int(offset, 16):]
-                fname, new = (new[:20], new[20:])
-                flen, new = (new[:4], new[4:])
-                flen = reversed([hex(int(str(x))) for x in flen])
-                flen = int(_join_hex(flen), 16)
-                data = new[:flen]
-                with open(os.path.join(self.folder, filename), "wb") as w:
-                    w.write(data)
+        # the key to this dict will be the file's ToC offset
+        # the value will be the subdirectory it's in
+        # it's defined here so it's always available
+        all_conflicts = {}
+        if has_conflicts:
+            # if there are conflicts, then the fun begins
+            # we need to get the conflicts table out for this
+            # thanks to Aali we have a pretty good idea of how it works
+            ffile = int(ordfiles[0][2], 16)
+            conflicts_table = _all[:ffile]
+            while conflicts_table:
+                # the name of the subdirectory is 128 bytes long
+                num = int(_join_hex(conflicts_table[:2]), 16)
+                while num:
+                    all_conflicts[int(_join_hex(conflicts_table[130:132]), 16)] = (
+                        _join_bytes(conflicts_table[2:130]).strip("\x00"))
+                    print(_join_bytes(conflicts_table[2:130]), num, len(conflicts_table))
+                    conflicts_table = conflicts_table[132:]
+                    num -= 1
+
+        # whether it has conflicts or not, it's time to extract them
+        for filename, cursor, offset, conflicts in ordfiles:
+            # this will dynamically check for any conflict
+            directory = all_conflicts.get(cursor, "")
+            new = total[int(offset, 16):]
+            fname, new = (new[:20], new[20:])
+            flen, new = (new[:4], new[4:])
+            flen = int(_join_hex(flen), 16)
+            data = new[:flen]
+            with open(os.path.join(folder, directory, filename), "wb") as w:
+                w.write(data)
 
 
