@@ -43,16 +43,6 @@ def _join_hex(hexlist):
     allhexes = reversed([hex(int(str(x))) for x in hexlist])
     return "0x" + "".join(x[2:].zfill(2) for x in allhexes)
 
-def _join_bytes(bytelist):
-    new = ""
-    for char in bytelist:
-        try:
-            char = chr(ord(char))
-        except TypeError:
-            char = chr(char)
-        new += char
-    return new
-
 def _parse_toc(num, toc, pointer=16):
     has_conflicts = False
     files = {}
@@ -123,8 +113,12 @@ def read(file):
             # if there are conflicts, then the fun begins
             # we need to get the conflicts table out for this
             # thanks to Aali we have a pretty good idea of how it works
+            # before the conflicts table, there's the lookup table
+            # I don't know what it does, but it's 3602 bytes long
+            # let's just skip them until I learn their purpose
+            # the last 2 bytes are the amount of conflicts though, so keep it
+            _all = _all[3600:]
             # this is how to read the conflicts table, according to dessertmode
-            # however, subdirectories are all jumbled up
             # read "conflict table size" (2-byte integer)
             # repeat "conflict table size" times:
             #   read "number of conflicts" (2-byte integer)
@@ -132,16 +126,12 @@ def read(file):
             #     read "name" (128-byte string)
             #     read "TOC index" (2-byte integer)
             conflicts_amount, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
-            done = 5
             while conflicts_amount:
                 conflicts_num, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
                 while conflicts_num:
-                    subdir, _all = (_join_bytes(_all[:128]), _all[128:])
-                    toc_index, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
-                    _files_contents[file][1][toc_index] = subdir
-                    if done:
-                        print(subdir)
-                        done -= 1
+                    subdir, _all = (_all[:128].decode("utf-8"), _all[128:])
+                    toc, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
+                    _files_contents[file][1][toc] = subdir.replace("\x00", "")
                     conflicts_num -= 1
                 conflicts_amount -= 1
 
@@ -155,12 +145,20 @@ def extract(file, folder=None):
         folder = os.path.join(os.getcwd(), file[:indx])
     if not os.path.isdir(folder):
         os.mkdir(folder)
+    folder = folder.replace("\\", "/")
 
     files, all_conflicts, total = read(file)
 
     for filename, cursor, offset, conflicts in files:
         # this will dynamically check for any conflict
         directory = all_conflicts.get(cursor, "")
+        directory = directory.replace("\\", "/").replace("\x00", "")
+        if directory and not os.path.isdir(os.path.join(folder, directory)):
+            new = folder
+            for fold in directory.split("/"):
+                new = os.path.join(new, fold)
+                if not os.path.isdir(new):
+                    os.mkdir(new)
         new = total[int(offset, 16):]
         fname, new = (new[:20], new[20:])
         flen, new = (new[:4], new[4:])
@@ -238,7 +236,7 @@ if __name__ == "__main__":
 
 
 
-#read("D:/GitHub/LGP/awe.lgp")
+read("D:/GitHub/LGP/magic.lgp")
 
 
 
