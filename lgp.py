@@ -183,16 +183,129 @@ def read(file):
                     conflicts_table = conflicts_table[132:]
                     num -= 1
 
-        # whether it has conflicts or not, it's time to extract them
-        for filename, cursor, offset, conflicts in ordfiles:
-            # this will dynamically check for any conflict
-            directory = all_conflicts.get(cursor, "")
-            new = total[int(offset, 16):]
-            fname, new = (new[:20], new[20:])
-            flen, new = (new[:4], new[4:])
-            flen = int(_join_hex(flen), 16)
-            data = new[:flen]
-            with open(os.path.join(folder, directory, filename), "wb") as w:
-                w.write(data)
+        return _files_contents[file]
+
+def extract(file, folder=None):
+    if folder is None:
+        indx = None
+        if "." in file:
+            indx = file.index(".")
+        folder = os.path.join(os.getcwd(), file[:indx])
+    if not os.path.isdir(folder):
+        os.mkdir(folder)
+
+    files, all_conflicts, total = read(file)
+
+    for filename, cursor, offset, conflicts in files:
+        # this will dynamically check for any conflict
+        directory = all_conflicts.get(cursor, "")
+        new = total[int(offset, 16):]
+        fname, new = (new[:20], new[20:])
+        flen, new = (new[:4], new[4:])
+        flen = int(_join_hex(flen), 16)
+        data = new[:flen]
+        with open(os.path.join(folder, directory, filename), "wb") as w:
+            w.write(data)
+
+def print_help():
+    print("Python 3 library for Final Fantasy VII's LGP files.", "",
+          "  Author: " + __author__, "  Version: " + __version__, "",
+          "Available command line parameters:",
+          "--extract    Extract an archive into a folder",
+          "Usage: %s --extract <file> [directory]" % _libname_, "",
+          # not implemented yet
+          # "--repack     Repack a folder into an archive",
+          # "Usage: %s --repack <directory> [file]" % _libname_, "",
+          # "--insert     Insert a folder into an archive"
+          # "Usage: %s --insert <directory> [file]" % _libname_, "",
+          "--help       Display this help message",
+          "Usage: %s --help" % _libname_, sep="\n")
+
+if len(sys.argv) == 2:
+    if os.path.isfile(sys.argv[1]):
+        extract(sys.argv[1])
+    # elif os.path.isdir(sys.argv[1]):
+    #     repack(sys.argv[1])
+
+if len(sys.argv) == 3:
+    param, file = sys.argv[1:]
+    if param in ("-e", "--extract"):
+        if os.path.isfile(file):
+            extract(file)
+        else:
+            print("Error: '%s' is not a file." % file)
+
+    # if param in ("-r", "--repack"):
+    #     if os.path.isdir(file):
+    #         repack(file)
+    #     else:
+    #         print("Error: '%s' is not a directory." % file)
+
+    # if param in ("-i", "--insert"):
+    #    if os.path.isdir(file):
+    #         insert(file)
+    #     else:
+    #         print("Error: '%s' is not a directory." % file)
+
+    if param in ("-h", "--help"):
+        print_help()
+
+if len(sys.argv) == 4:
+    param, file, folder = sys.argv[1:]
+    if param in ("-e", "--extract"):
+        if os.path.isfile(file):
+            extract(file, folder)
+        else:
+            print("Error: '%s' is not a file." % file)
+
+    # if param in ("-r", "--repack"):
+    #     if os.path.isdir(file):
+    #         repack(file, folder) # it's actually the other way around
+    #     else:
+    #         print("Error: '%s' is not a directory." % file)
+
+    # if param in ("-i", "--insert"):
+    #     if os.path.isdir(file):
+    #         insert(file, folder):
+    #     else:
+    #         print("Error: '%s' is not a directory." % file)
+
+
+if __name__ == "__main__":
+    print_help()
+
+
+
+#read("D:/GitHub/LGP/awe.lgp")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
