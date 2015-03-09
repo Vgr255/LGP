@@ -117,6 +117,12 @@ def read(file):
             # I don't know what it does, but it's 3602 bytes long
             # let's just skip them until I learn their purpose
             # the last 2 bytes are the amount of conflicts though, so keep it
+            # the lookup table in an LGP file is used to quickly find files by name
+            # (PC version wasn't fast enough to scan the entire ToC back in '98)
+            # you calculate a lookup value from the first two characters of the
+            # file name and that becomes the index into the table
+            # of course its not necessary to extract an archive, its only used for random file access
+            # so you need to be able to create a lookup table for your LGP when packing but you can just ignore it when unpacking
             _all = _all[3600:]
             # this is how to read the conflicts table, according to dessertmode
             # read "conflict table size" (2-byte integer)
