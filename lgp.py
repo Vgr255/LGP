@@ -86,6 +86,9 @@ def _parse_toc(num, toc, pointer=16):
 def read(file):
     with open(file, "rb") as f:
         _all = f.read()
+        # strip the path from the file, to get only the filename
+        if "/" in file or "\\" in file:
+            file = file[-list(reversed(file.replace("\\", "/"))).index("/"):]
         # save a hash of the file's contents in memory
         # use sha512 because the files can be really huge
         fhash = hashlib.sha512(_all).hexdigest()
