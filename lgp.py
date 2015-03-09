@@ -120,17 +120,27 @@ def read(file):
             # if there are conflicts, then the fun begins
             # we need to get the conflicts table out for this
             # thanks to Aali we have a pretty good idea of how it works
-            ffile = int(_files_contents[file][0][0][2], 16)
-            conflicts_table = _all[:ffile]
-            while conflicts_table:
-                # the name of the subdirectory is 128 bytes long
-                num = int(_join_hex(conflicts_table[:2]), 16)
-                while num:
-                    all_conflicts[int(_join_hex(conflicts_table[130:132]), 16)] = (
-                        _join_bytes(conflicts_table[2:130]).strip("\x00"))
-                    print(_join_bytes(conflicts_table[2:130]), num, len(conflicts_table))
-                    conflicts_table = conflicts_table[132:]
-                    num -= 1
+            # this is how to read the conflicts table, according to dessertmode
+            # however, subdirectories are all jumbled up
+            # read "conflict table size" (2-byte integer)
+            # repeat "conflict table size" times:
+            #   read "number of conflicts" (2-byte integer)
+            #   repeat "number of conflicts" times:
+            #     read "name" (128-byte string)
+            #     read "TOC index" (2-byte integer)
+            conflicts_amount, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
+            done = 5
+            while conflicts_amount:
+                conflicts_num, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
+                while conflicts_num:
+                    subdir, _all = (_join_bytes(_all[:128]), _all[128:])
+                    toc_index, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
+                    _files_contents[file][1][toc_index] = subdir
+                    if done:
+                        print(subdir)
+                        done -= 1
+                    conflicts_num -= 1
+                conflicts_amount -= 1
 
         return _files_contents[file]
 
