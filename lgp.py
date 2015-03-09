@@ -21,6 +21,11 @@
 # I have never really messed around with file formats before, so I had nothing
 # he helped me find my way through this and make it work as it should
 
+__version__ = "0.1"
+__author__ = "Vgr"
+
+_libname_ = __file__[-list(reversed(__file__.replace("\\", "/"))).index("/"):]
+
 import threading
 import hashlib
 import time
