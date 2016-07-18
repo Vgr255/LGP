@@ -39,10 +39,6 @@ _hashed_files = {}
 # this is all optimization, and is only used to access the data more than once
 _files_contents = {}
 
-def _join_hex(hexlist):
-    allhexes = reversed([hex(int(str(x))) for x in hexlist])
-    return "0x" + "".join(x[2:].zfill(2) for x in allhexes)
-
 def _parse_toc(num, toc, pointer=16):
     has_conflicts = False
     files = {}
@@ -55,9 +51,9 @@ def _parse_toc(num, toc, pointer=16):
         # remove all null bytes terminating the strings
         filename = filename.strip("\x00")
         # 4-bytes integer stating the beginning of the file
-        start = _join_hex(header[:4])
+        start = hex(int.from_bytes(header[:4], "little"))
         # get the total amount of conflicts for that file
-        conflicts = _join_hex(header[5:])
+        conflicts = hex(int.from_bytes(header[5:], "little"))
         # keep in memory the conflicts amount for each file
         # also remember the starting position of this index
         files[start] = (filename, pointer, header[4], header[5:])
@@ -94,7 +90,7 @@ def read(file):
         fcreator, num, _all = (_all[:12], _all[12:16], _all[16:])
         # find the actual value of the byte we just got
         # flip the bytes around and calculate that
-        num = int(_join_hex(num), 16)
+        num = int.from_bytes(num, "little")
         files, has_conflicts = _parse_toc(num, _all[:num*27])
         _all = _all[num*27:]
         # past this point, we parsed and saved all files' offsets
@@ -131,12 +127,12 @@ def read(file):
             #   repeat "number of conflicts" times:
             #     read "name" (128-byte string)
             #     read "TOC index" (2-byte integer)
-            conflicts_amount, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
+            conflicts_amount, _all = (int.from_bytes(_all[:2], "little"), _all[2:])
             while conflicts_amount:
-                conflicts_num, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
+                conflicts_num, _all = (int.from_bytes(_all[:2], "little"), _all[2:])
                 while conflicts_num:
                     subdir, _all = (_all[:128].decode("utf-8"), _all[128:])
-                    toc, _all = (int(_join_hex(_all[:2]), 16), _all[2:])
+                    toc, _all = (int.from_bytes(_all[:2], "little"), _all[2:])
                     _files_contents[file][1][toc] = subdir.replace("\x00", "")
                     conflicts_num -= 1
                 conflicts_amount -= 1
@@ -168,7 +164,7 @@ def extract(file, folder=None):
         new = total[int(offset, 16):]
         fname, new = (new[:20], new[20:])
         flen, new = (new[:4], new[4:])
-        flen = int(_join_hex(flen), 16)
+        flen = int.from_bytes(flen, "little")
         data = new[:flen]
         with open(os.path.join(folder, directory, filename), "wb") as w:
             w.write(data)
