@@ -238,7 +238,6 @@ if __name__ == "__main__":
 
 
 
-read("D:/GitHub/LGP/magic.lgp")
 
 
 
