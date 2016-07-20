@@ -397,7 +397,7 @@ PyDoc_STRVAR(pack_doc, "LGP Repacker function");
 /* unlgp.c part */
 
 static PyObject *
-lgp_unpack(PyObject *self, PyObject *args, PyObject *keywords)
+lgp__unpack(PyObject *self, PyObject *args)
 {
     FILE *f;
     char tmp[512];
@@ -418,16 +418,9 @@ lgp_unpack(PyObject *self, PyObject *args, PyObject *keywords)
      * -1 = Nothing is ever displayed, not even warnings
      */
     int verbosity = 0;
-    static char *kwlist[] = {"archive", "verbosity", 0};
 
-    if (!keywords)
-    {
-        if (!PyArg_ParseTuple(args, "s:unpack", &archive))
-            return NULL;
-    } else {
-        if (!PyArg_ParseTupleAndKeywords(args, keywords, "si:unpack", kwlist, &archive, &verbosity))
-            return NULL;
-    }
+    if (!PyArg_ParseTuple(args, "si:unpack", &archive, &verbosity))
+        return NULL;
 
     f = fopen(archive, "rb");
 
@@ -686,7 +679,7 @@ PyDoc_STRVAR(unpack_doc, "Function for unpacking LGP files.");
 
 static struct PyMethodDef lgp_methods[] = {
     {"pack",        lgp_pack,    METH_VARARGS,   pack_doc},
-    {"unpack",      (PyCFunction)lgp_unpack,  METH_VARARGS | METH_KEYWORDS, unpack_doc},
+    {"_unpack", (PyCFunction)lgp__unpack, METH_VARARGS, unpack_doc},
     {NULL,          NULL},
 };
 
