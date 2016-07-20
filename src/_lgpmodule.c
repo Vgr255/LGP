@@ -1,4 +1,5 @@
 #include "Python.h"
+#include "structmember.h"
 #include "_lgpmodule.h"
 
 /* To do:
@@ -13,6 +14,8 @@
  */
 
 /* shared part */
+
+static PyTypeObject _LGPType;
 
 void *malloc_read(FILE *f, int size)
 {
@@ -677,10 +680,66 @@ fail_1:
 
 PyDoc_STRVAR(unpack_doc, "Function for unpacking LGP files.");
 
-static struct PyMethodDef lgp_methods[] = {
-    {"pack",        lgp_pack,    METH_VARARGS,   pack_doc},
+static PyMethodDef lgp_methods[] = {
+    /* {"pack",        lgp_pack,    METH_VARARGS,   pack_doc}, */
     {"_unpack", (PyCFunction)lgp__unpack, METH_VARARGS, unpack_doc},
     {NULL,          NULL},
+};
+
+static PyMemberDef lgp_members[] = {
+    {"files", T_OBJECT_EX, offsetof(_LGPObject, files), READONLY},
+    {NULL},
+};
+
+static PyTypeObject _LGPType = {
+    PyObject_HEAD_INIT(NULL)
+    "_lgp._LGP",                                /* tp_name */
+    sizeof(_LGPObject),                         /* tp_basicsize */
+    0,                                          /* tp_itemsize */
+    0,                                          /* tp_dealloc */
+    0,                                          /* tp_print */
+    0,                                          /* tp_getattr */
+    0,                                          /* tp_setattr */
+    0,                                          /* tp_reserved */
+    0,                                          /* tp_repr */
+    0,                                          /* tp_as_number */
+    0,                                          /* tp_as_sequence */
+    0,                                          /* tp_as_mapping */
+    0,                                          /* tp_hash */
+    0,                                          /* tp_call */
+    0,                                          /* tp_str */
+    PyObject_GenericGetAttr,                    /* tp_getattro */
+    0,                                          /* tp_setattro */
+    0,                                          /* tp_as_buffer */
+    Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,   /* tp_flags */
+    0,                                          /* tp_doc */
+    0,                                          /* tp_traverse */
+    0,                                          /* tp_clear */
+    0,                                          /* tp_richcompare */
+    0,                                          /* tp_weaklistoffset */
+    0,                                          /* tp_iter */
+    0,                                          /* tp_iternext */
+    lgp_methods,                                /* tp_methods */
+    lgp_members,                                /* tp_members */
+    0,                                          /* tp_getset */
+    0,                                          /* tp_base */
+    0,                                          /* tp_dict */
+    0,                                          /* tp_descr_get */
+    0,                                          /* tp_descr_set */
+    0,                                          /* tp_dictoffset */
+    0,                                          /* tp_init */
+    0,                                          /* tp_alloc */
+    0,                                          /* tp_new */
+    0,                                          /* tp_free */
+    0,                                          /* tp_is_gc */
+    0,                                          /* tp_bases */
+    0,                                          /* tp_mro */
+    0,                                          /* tp_cache */
+    0,                                          /* tp_subclasses */
+    0,                                          /* tp_weaklist */
+    0,                                          /* tp_del */
+    0,                                          /* tp_version_tag */
+    0,                                          /* tp_finalize */
 };
 
 PyDoc_STRVAR(lgp_doc, "Test lgp module.");
@@ -690,7 +749,7 @@ static struct PyModuleDef lgpmodule = {
     "_lgp",
     lgp_doc,
     0, /* multiple "initialization" just copies the module dict. */
-    lgp_methods,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -700,5 +759,17 @@ static struct PyModuleDef lgpmodule = {
 PyMODINIT_FUNC
 PyInit__lgp(void)
 {
-    return PyModule_Create(&lgpmodule);
+    PyObject *dict;
+
+    dict = PyModule_Create(&lgpmodule);
+    if (dict == NULL)
+        return NULL;
+
+    if (PyType_Ready(&_LGPType) < 0)
+        return NULL;
+
+    Py_INCREF(&_LGPType);
+    PyModule_AddObject(dict, "_LGP", (PyObject *)&_LGPType);
+
+    return dict;
 }

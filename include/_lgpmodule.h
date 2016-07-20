@@ -24,6 +24,11 @@ extern "C" {
 #include <dirent.h>
 #endif
 
+typedef struct _lgp {
+    PyObject_HEAD
+    PyDictObject *files;
+} _LGPObject;
+
 struct toc_entry
 {
     char name[20];
