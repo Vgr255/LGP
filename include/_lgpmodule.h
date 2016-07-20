@@ -7,7 +7,6 @@ extern "C" {
 
 #include <ctype.h>
 #include <stdio.h>
-#include <direct.h>
 #include <string.h>
 #include <malloc.h>
 #include <sys/stat.h>
@@ -19,12 +18,10 @@ extern "C" {
 
 #ifdef _WIN32
 #include "_dirent.h"
+#include <direct.h>
+#define mkdir(path, mode) _mkdir(path)
 #else
 #include <dirent.h>
-#endif
-
-#ifndef mkdir
-#define mkdir(path, mode) _mkdir(path)
 #endif
 
 struct toc_entry
