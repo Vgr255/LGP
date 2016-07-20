@@ -1,5 +1,5 @@
-#ifndef Py_LGPMODULE_H
-#define Py_LGPMODULE_H
+#ifndef _LGPMODULE_H
+#define _LGPMODULE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,4 +68,4 @@ inline int lgp_lookup_value(unsigned char c)
 #ifdef __cplusplus
 }
 #endif
-#endif /* !Py_LGPMODULE_H */
+#endif /* !_LGPMODULE_H */
