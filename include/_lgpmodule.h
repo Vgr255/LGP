@@ -28,7 +28,7 @@ struct toc_entry
 {
     char name[20];
     unsigned int offset;
-    unsigned char unknown1;
+    unsigned char unknown;
     unsigned short conflict;
 };
 

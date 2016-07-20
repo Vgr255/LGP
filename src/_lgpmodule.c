@@ -142,7 +142,8 @@ int read_directory(char *base_path, char *path, DIR *d)
     return 0;
 }
 
-PyObject* lgp_pack(PyObject *self, PyObject *args)
+static PyObject *
+lgp_pack(PyObject *self, PyObject *args)
 {
     DIR *d;
     FILE *f;
@@ -285,7 +286,7 @@ PyObject* lgp_pack(PyObject *self, PyObject *args)
         {
             memcpy(toc.name, file->file_header.name, 20);
             toc.offset = 16 + files_read * sizeof(struct toc_entry) + LOOKUP_TABLE_ENTRIES * 4 + conflict_table_size + offset;
-            toc.unknown1 = 14;
+            toc.unknown = 14;
             toc.conflict = file->conflict;
 
             if (fwrite(&toc, sizeof(struct toc_entry), 1, f) < 0)
@@ -395,24 +396,40 @@ PyDoc_STRVAR(pack_doc, "LGP Repacker function");
 
 /* unlgp.c part */
 
-PyObject* lgp_unpack(PyObject *self, PyObject *args)
+static PyObject *
+lgp_unpack(PyObject *self, PyObject *args, PyObject *keywords)
 {
     FILE *f;
     char tmp[512];
     int num_files;
     int i;
+    int k;
     int files_written = 0;
     unsigned short num_conflicts;
     struct toc_entry *toc;
     struct lookup_table_entry *lookup_table;
     struct conflict_entry *conflicts[MAX_CONFLICTS];
     int num_conflict_entries[MAX_CONFLICTS];
-    const char *directory;
+    const char *archive;
+    /* Verbosity level for various purposes 
+     * 0 = Only warnings are displayed
+     * 1 = Some information is displayed as well
+     * 2 = All debug information is shown
+     * -1 = Nothing is ever displayed, not even warnings
+     */
+    int verbosity = 0;
+    static char *kwlist[] = {"archive", "verbosity", 0};
 
-    if (!PyArg_ParseTuple(args, "s:unpack", &directory))
-        return NULL;
+    if (!keywords)
+    {
+        if (!PyArg_ParseTuple(args, "s:unpack", &archive))
+            return NULL;
+    } else {
+        if (!PyArg_ParseTupleAndKeywords(args, keywords, "si:unpack", kwlist, &archive, &verbosity))
+            return NULL;
+    }
 
-    f = fopen(directory, "rb");
+    f = fopen(archive, "rb");
 
     if (!f)
     {
@@ -420,38 +437,75 @@ PyObject* lgp_unpack(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    fread(tmp, 12, 1, f);
-
-    fread(&num_files, 4, 1, f);
-
-    /* printf("Number of files in archive: %i\n", num_files); */
-    PySys_WriteStdout("Number of files in archive: %i\n", num_files);
-
-    toc = malloc_read(f, sizeof(*toc) * num_files);
-
-    lookup_table = malloc_read(f, sizeof(*lookup_table) * LOOKUP_TABLE_ENTRIES);
-
-    fread(&num_conflicts, 2, 1, f);
-
-    /* if(num_conflicts) debug_printf("%i conflicts\n", num_conflicts); */
-    if (num_conflicts)
-        PySys_WriteStdout("%i conflicts\n", num_conflicts);
-
-    for(i = 0; i < num_conflicts; i++)
+    if (!fread(tmp, 12, 1, f) || !fread(&num_files, 4, 1, f))
     {
-        fread(&num_conflict_entries[i], 2, 1, f);
-
-        /* debug_printf("%i: %i conflict entries\n", i, num_conflict_entries[i]); */
-        PySys_WriteStdout("%i: %i conflict entries\n", i, num_conflict_entries[i]);
-
-        conflicts[i] = malloc_read(f, sizeof(**conflicts) * num_conflict_entries[i]);
+        PyErr_SetString(PyExc_EOFError, "Unexpected EOF reached in archive header");
+        goto fail_1;
     }
 
-    PySys_WriteStdout("Done dealing with conflicts\n");
+    if (verbosity > 0)
+        PySys_WriteStdout("Number of files in archive: %i\n", num_files);
+
+    toc = malloc(sizeof(*toc) * num_files);
+    for(i = 0; i < num_files; i++)
+    {
+        if (!fread(&toc[i].name, 20, 1, f) ||
+            !fread(&toc[i].offset, 4, 1, f) ||
+            !fread(&toc[i].unknown, 1, 1, f) ||
+            !fread(&toc[i].conflict, 2, 1, f))
+        {
+            PyErr_SetString(PyExc_EOFError, "Unexpected EOF reached in ToC");
+            goto fail_2;
+        }
+    }
+
+    lookup_table = malloc(sizeof(*lookup_table) * LOOKUP_TABLE_ENTRIES);
+    for(i = 0; i < LOOKUP_TABLE_ENTRIES; i++)
+    {
+        if (!fread(&lookup_table[i].toc_offset, 2, 1, f) ||
+            !fread(&lookup_table[i].num_files, 2, 1, f))
+        {
+            PyErr_SetString(PyExc_EOFError, "Unexpected EOF reached in lookup table");
+            goto fail_3;
+        }
+    }
+
+    if (!fread(&num_conflicts, 2, 1, f))
+    {
+        PyErr_SetString(PyExc_EOFError, "Unexpected EOF reached while reading conflicts");
+        goto fail_3;
+    }
+
+    if (verbosity > 0)
+        PySys_WriteStdout("%i conflicts\n", num_conflicts);
+
+    for(k = 0; k < num_conflicts; k++)
+    {
+        if (!fread(&num_conflict_entries[k], 2, 1, f))
+        {
+            PyErr_SetString(PyExc_EOFError, "Unexpected EOF reached in conflicts table");
+            goto fail_3;
+        }
+
+        if (verbosity > 1)
+            PySys_WriteStdout("%i: %i conflict entries\n", i, num_conflict_entries[k]);
+
+        conflicts[k] = malloc(sizeof(**conflicts) * num_conflict_entries[k]);
+
+        if (!fread(&conflicts[k]->name, 128, 1, f) ||
+            !fread(&conflicts[k]->toc_index, 2, 1, f))
+        {
+            PyErr_SetString(PyExc_EOFError, "Unexpected EOF reached in conflicts parsing");
+            goto fail_4;
+        }
+    }
+
+    if (verbosity > 0)
+        PySys_WriteStdout("Done dealing with conflicts\n");
 
     for(i = 0; i < num_files; i++)
     {
-        struct file_header file_header;
+        struct file_header *file_header;
         void *data;
         FILE *of;
         int lookup_value1;
@@ -460,21 +514,35 @@ PyObject* lgp_unpack(PyObject *self, PyObject *args)
         int resolved_conflict = 0;
         char name[256];
 
-        /* debug_printf("%i; Name: %s, offset: 0x%x, unknown: 0x%x, conflict: %i\n", i, toc[i].name, toc[i].offset, toc[i].unknown1, toc[i].conflict); */
-        PySys_WriteStdout("%i; Name: %s, offset: 0x%x, unknown: 0x%x, conflict: %i\n", i, toc[i].name, toc[i].offset, toc[i].unknown1, toc[i].conflict);
+        if (verbosity > 1)
+            PySys_WriteStdout("%i; Name: %s, offset: 0x%x, unknown: 0x%x, conflict: %i\n", i, toc[i].name, toc[i].offset, toc[i].unknown, toc[i].conflict);
 
-        fseek(f, toc[i].offset, SEEK_SET);
+        if (fseek(f, toc[i].offset, SEEK_SET))
+        {
+            PyErr_SetString(PyExc_EOFError, "Unexpected EOF in file header seeking");
+            goto fail_4;
+        }
 
-        fread(&file_header, sizeof(file_header), 1, f);
+        file_header = malloc(sizeof(*file_header));
 
-        /* debug_printf("%i; Name: %s, size: %i\n", i, file_header.name, file_header.size); */
-        PySys_WriteStdout("%i; Name: %s, size: %i\n", i, file_header.name, file_header.size);
-        PySys_WriteStdout("%s %s\n", toc[i].name, file_header.name);
+        if (!fread(&file_header->name, 20, 1, f) ||
+            !fread(&file_header->size, 4, 1, f))
+        {
+            PyErr_SetString(PyExc_EOFError, "Unexpected EOF in file header parsing");
+            free(file_header);
+            goto fail_4;
+        }
 
-        if(!strcmp(toc[i].name, file_header.name/*, 20*/))
+        if (verbosity > 1)
+            PySys_WriteStdout("%i; Name: %s, size: %i\n", i, file_header->name, file_header->size);
+        if (verbosity > 2)
+            PySys_WriteStdout("%s %s\n", toc[i].name, file_header->name);
+
+        if(!strcmp(toc[i].name, file_header->name/*, 20*/))
         {
             PyErr_Format(PyExc_ValueError, "Offset error: %s", toc[i].name);
-            return NULL;
+            free(file_header);
+            goto fail_4;
         }
 
         lookup_value1 = lgp_lookup_value(toc[i].name[0]);
@@ -482,17 +550,18 @@ PyObject* lgp_unpack(PyObject *self, PyObject *args)
 
         lookup_result = &lookup_table[lookup_value1 * LOOKUP_VALUE_MAX + lookup_value2 + 1];
 
-        /* debug_printf("%i; %i - %i\n", i, (lookup_result->toc_offset - 1), (lookup_result->toc_offset - 1 + lookup_result->num_files)); */
-        /* PySys_WriteStdout("%i; %i - %i\n", i, (lookup_result->toc_offset - 1), (lookup_result->toc_offset - 1 + lookup_result->num_files)); */
-        PySys_WriteStdout("i: %i\ntoc offset: %i\nnum files: %i\n", i, lookup_result->toc_offset, lookup_result->num_files);
+        if (verbosity > 2)
+            PySys_WriteStdout("%i; %i - %i\n", i, (lookup_result->toc_offset - 1), (lookup_result->toc_offset - 1 + lookup_result->num_files));
+        if (verbosity > 1)
+            PySys_WriteStdout("i: %i\ntoc offset: %i\nnum files: %i\n", i, lookup_result->toc_offset, lookup_result->num_files);
 
-        if (i < (lookup_result->toc_offset - 1) || i > (lookup_result->toc_offset - 1 + lookup_result->num_files))
-        {
-            /* printf("Broken lookup table, FF7 may not be able to find %s\n", toc[i].name); */
-            PySys_WriteStdout("Broken lookup table, FF7 may not be able to find %s\n", toc[i].name);
-        }
+        if ((i < (lookup_result->toc_offset - 1) || i > (lookup_result->toc_offset - 1 + lookup_result->num_files)) && verbosity > -1)
+            PySys_WriteStdout("Warning: Broken lookup table, FF7 may not be able to find %s\n", toc[i].name);
 
-        strcpy(name, "./");
+        strcpy(name, archive);
+        strcat(name, "_output");
+        mkdir(name, 0777);
+        strcat(name, "/");
         strcat(name, toc[i].name);
 
         if(toc[i].conflict != 0)
@@ -500,16 +569,16 @@ PyObject* lgp_unpack(PyObject *self, PyObject *args)
             int j;
             int conflict = toc[i].conflict - 1;
 
-            /* debug_printf("Trying to resolve conflict %i for %i (%s)\n", conflict, i, toc[i].name); */
-            PySys_WriteStdout("Trying to resolve conflict %i for %i (%s)\n", conflict, i, toc[i].name);
+            if (verbosity > 1)
+                PySys_WriteStdout("Trying to resolve conflict %i for %i (%s)\n", conflict, i, toc[i].name);
 
             for(j = 0; j < num_conflict_entries[conflict]; j++)
             {
                 if(conflicts[conflict][j].toc_index == i)
                 {
                     sprintf(name, "%s/%s", conflicts[conflict][j].name, toc[i].name);
-                    /* debug_printf("Conflict resolved to %s\n", name); */
-                    PySys_WriteStdout("Conflict resolved to %s\n", name);
+                    if (verbosity > 1)
+                        PySys_WriteStdout("Conflict resolved to %s\n", name);
                     resolved_conflict = 1;
                     break;
                 }
@@ -518,12 +587,13 @@ PyObject* lgp_unpack(PyObject *self, PyObject *args)
             if(!resolved_conflict)
             {
                 PyErr_Format(PyExc_ValueError, "Unresolved conflict for %s", toc[i].name);
-                return NULL;
+                free(file_header);
+                goto fail_4;
             }
         }
 
-        /* debug_printf("Extracting %s\n", name); */
-        PySys_WriteStdout("Extracting %s\n", name);
+        if (verbosity > 1)
+            PySys_WriteStdout("Extracting %s\n", name);
 
         if(resolved_conflict)
         {
@@ -538,44 +608,85 @@ PyObject* lgp_unpack(PyObject *self, PyObject *args)
                 strncpy(tmp, name, next - name);
                 tmp[next - name] = 0;
 
-                /* debug_printf("Creating directory %s\n", tmp); */
-                PySys_WriteStdout("Creating directory %s\n", tmp);
+                if (verbosity > 1)
+                    PySys_WriteStdout("Creating directory %s\n", tmp);
 
-                mkdir(tmp, 0777);
+                if (!mkdir(tmp, 0777))
+                {
+                    PyErr_Format(PyExc_OSError, "Could not create directory %s", tmp);
+                    free(file_header);
+                    goto fail_4;
+                }
             }
         }
 
-        data = malloc_read(f, file_header.size);
+        data = malloc(file_header->size);
+
+        if (!fread(data, file_header->size, 1, f))
+        {
+            PyErr_SetString(PyExc_ValueError, "Could not read data");
+            free(file_header);
+            free(data);
+            goto fail_4;
+        }
 
         of = fopen(name, "wb");
+        PySys_WriteStdout("After opening file, trying to write\n");
 
         if(!of)
         {
-            PyErr_Format(PyExc_OSError, "Error opening output folder %s", name);
+            PyErr_Format(PyExc_OSError, "Error opening output file %s", name);
+            free(file_header);
             free(data);
-            return NULL;
+            goto fail_4;
         }
 
-        fwrite(data, file_header.size, 1, of);
+        if (!fwrite(data, file_header->size, 1, of))
+        {
+            PyErr_Format(PyExc_OSError, "Could not write %s to %s", name, tmp);
+            free(file_header);
+            free(data);
+            goto fail_4;
+        }
+        PySys_WriteStdout("After writing\n");
 
         fclose(of);
-
+        free(file_header);
         free(data);
 
         files_written++;
     }
 
-    /* printf("Successfully extracted %i file(s) out of %i file(s) total.\n", files_written, num_files); */
-    PySys_WriteStdout("Successfully extracted %i file(s) out of %i file(s) total.\n", files_written, num_files);
+    if (verbosity > 0)
+        PySys_WriteStdout("Successfully extracted %i file(s) out of %i file(s) total\n", files_written, num_files);
+
+    fclose(f);
+    free(toc);
+    free(lookup_table);
+
+    for (i = 0; i < (k+1) && i < num_conflicts; i++)
+        free(conflicts[i]);
 
     Py_RETURN_NONE;
+
+fail_4:
+    for (i = 0; i < num_conflicts; i++)
+        free(conflicts[i]);
+fail_3:
+    free(lookup_table);
+fail_2:
+    free(toc);
+fail_1:
+    fclose(f);
+    return NULL;
+
 }
 
 PyDoc_STRVAR(unpack_doc, "Function for unpacking LGP files.");
 
 static struct PyMethodDef lgp_methods[] = {
     {"pack",        lgp_pack,    METH_VARARGS,   pack_doc},
-    {"unpack",      lgp_unpack,  METH_VARARGS,   unpack_doc},
+    {"unpack",      (PyCFunction)lgp_unpack,  METH_VARARGS | METH_KEYWORDS, unpack_doc},
     {NULL,          NULL},
 };
 
