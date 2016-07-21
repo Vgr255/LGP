@@ -400,7 +400,7 @@ PyDoc_STRVAR(pack_doc, "LGP Repacker function");
 /* unlgp.c part */
 
 static PyObject *
-lgp__unpack(PyObject *self, PyObject *args)
+lgp_unpack(_LGPObject *self, PyObject *args)
 {
     FILE *f;
     char tmp[512];
@@ -704,7 +704,7 @@ lgp_new(PyTypeObject *type, PyObject *args, PyObject *keywords)
 
 static PyMethodDef lgp_methods[] = {
     /* {"pack",        lgp_pack,    METH_VARARGS,   pack_doc}, */
-    {"_unpack", (PyCFunction)lgp__unpack, METH_VARARGS, unpack_doc},
+    {"unpack", (PyCFunction)lgp_unpack, METH_NOARGS, unpack_doc},
     {NULL,          NULL},
 };
 
