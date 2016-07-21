@@ -26,7 +26,7 @@ extern "C" {
 
 typedef struct _lgp {
     PyObject_HEAD
-    PyDictObject *files;
+    const char *file;
 } _LGPObject;
 
 struct toc_entry

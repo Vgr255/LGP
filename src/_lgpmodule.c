@@ -413,7 +413,6 @@ lgp__unpack(PyObject *self, PyObject *args)
     struct lookup_table_entry *lookup_table;
     struct conflict_entry *conflicts[MAX_CONFLICTS];
     int num_conflict_entries[MAX_CONFLICTS];
-    const char *archive;
     /* Verbosity level for various purposes 
      * 0 = Only warnings are displayed
      * 1 = Some information is displayed as well
@@ -422,10 +421,13 @@ lgp__unpack(PyObject *self, PyObject *args)
      */
     int verbosity = 0;
 
-    if (!PyArg_ParseTuple(args, "si:unpack", &archive, &verbosity))
+    if (!self->file)
+    {
+        PyErr_SetString(PyExc_RuntimeError, "Filename was lost, cannot unpack");
         return NULL;
+    }
 
-    f = fopen(archive, "rb");
+    f = fopen(self->file, "rb");
 
     if (!f)
     {
@@ -554,7 +556,7 @@ lgp__unpack(PyObject *self, PyObject *args)
         if ((i < (lookup_result->toc_offset - 1) || i > (lookup_result->toc_offset - 1 + lookup_result->num_files)) && verbosity > -1)
             PySys_WriteStdout("Warning: Broken lookup table, FF7 may not be able to find %s\n", toc[i].name);
 
-        strcpy(name, archive);
+        strcpy(name, self->file);
         strcat(name, "_output");
         mkdir(name, 0777);
         strcat(name, "/");
@@ -678,7 +680,27 @@ fail_1:
 
 }
 
-PyDoc_STRVAR(unpack_doc, "Function for unpacking LGP files.");
+PyDoc_STRVAR(unpack_doc, "Unpack the LGP archive into a single folder.");
+
+static PyObject *
+lgp_new(PyTypeObject *type, PyObject *args, PyObject *keywords)
+{
+    _LGPObject *obj;
+    const char *file;
+
+    if (keywords != NULL && !_PyArg_NoKeywords(Py_TYPE(type)->tp_name, keywords))
+        return NULL;
+
+    if (!PyArg_ParseTuple(args, "s:_lgp._LGP", &file))
+        return NULL;
+
+    obj = (_LGPObject *)type->tp_alloc(type, 0);
+    if (obj == NULL)
+        return NULL;
+
+    obj->file = file;
+    return (PyObject *)obj;
+}
 
 static PyMethodDef lgp_methods[] = {
     /* {"pack",        lgp_pack,    METH_VARARGS,   pack_doc}, */
@@ -687,7 +709,7 @@ static PyMethodDef lgp_methods[] = {
 };
 
 static PyMemberDef lgp_members[] = {
-    {"files", T_OBJECT_EX, offsetof(_LGPObject, files), READONLY},
+    {"file", T_STRING, offsetof(_LGPObject, file), READONLY},
     {NULL},
 };
 
@@ -728,9 +750,9 @@ static PyTypeObject _LGPType = {
     0,                                          /* tp_descr_set */
     0,                                          /* tp_dictoffset */
     0,                                          /* tp_init */
-    0,                                          /* tp_alloc */
-    0,                                          /* tp_new */
-    0,                                          /* tp_free */
+    PyType_GenericAlloc,                        /* tp_alloc */
+    lgp_new,                                    /* tp_new */
+    PyObject_GC_Del,                            /* tp_free */
     0,                                          /* tp_is_gc */
     0,                                          /* tp_bases */
     0,                                          /* tp_mro */
