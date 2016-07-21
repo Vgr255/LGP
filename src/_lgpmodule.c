@@ -395,7 +395,7 @@ lgp_pack(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(pack_doc, "LGP Repacker function");
+PyDoc_STRVAR(pack_doc, "Repack a folder into a single LGP archive.");
 
 /* unlgp.c part */
 
