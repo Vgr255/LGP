@@ -702,6 +702,13 @@ lgp_new(PyTypeObject *type, PyObject *args, PyObject *keywords)
     return (PyObject *)obj;
 }
 
+static void
+lgp_dealloc(_LGPObject *self)
+{
+    Py_XDECREF(self->file);
+    ((PyObject *)self)->ob_type->tp_free((PyObject *)self);
+}
+
 static PyMethodDef lgp_methods[] = {
     /* {"pack",        lgp_pack,    METH_VARARGS,   pack_doc}, */
     {"unpack", (PyCFunction)lgp_unpack, METH_NOARGS, unpack_doc},
@@ -718,7 +725,7 @@ static PyTypeObject _LGPType = {
     "_lgp._LGP",                                /* tp_name */
     sizeof(_LGPObject),                         /* tp_basicsize */
     0,                                          /* tp_itemsize */
-    0,                                          /* tp_dealloc */
+    (destructor)lgp_dealloc,                    /* tp_dealloc */
     0,                                          /* tp_print */
     0,                                          /* tp_getattr */
     0,                                          /* tp_setattr */
