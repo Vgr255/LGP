@@ -740,7 +740,7 @@ static PyTypeObject _LGPType = {
     PyObject_GenericGetAttr,                    /* tp_getattro */
     0,                                          /* tp_setattro */
     0,                                          /* tp_as_buffer */
-    Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,   /* tp_flags */
+    Py_TPFLAGS_BASETYPE | Py_TPFLAGS_DEFAULT,   /* tp_flags */
     0,                                          /* tp_doc */
     0,                                          /* tp_traverse */
     0,                                          /* tp_clear */
@@ -759,7 +759,7 @@ static PyTypeObject _LGPType = {
     0,                                          /* tp_init */
     PyType_GenericAlloc,                        /* tp_alloc */
     lgp_new,                                    /* tp_new */
-    PyObject_GC_Del,                            /* tp_free */
+    PyObject_DEL,                               /* tp_free */
     0,                                          /* tp_is_gc */
     0,                                          /* tp_bases */
     0,                                          /* tp_mro */
